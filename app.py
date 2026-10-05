@@ -4,7 +4,11 @@ import requests
 app = Flask(__name__)
 
 
+# -----------------------------
+# GET LOCATION COORDINATES
+# -----------------------------
 def get_coordinates(place):
+
     url = "https://geocoding-api.open-meteo.com/v1/search"
 
     params = {
@@ -25,11 +29,13 @@ def get_coordinates(place):
     return {
         "lat": location["latitude"],
         "lon": location["longitude"],
-        "name": location["name"],
-        "country": location.get("country", "")
+        "name": location["name"]
     }
 
 
+# -----------------------------
+# GET REAL ROUTE
+# -----------------------------
 def get_route(start, destination):
 
     start_location = get_coordinates(start)
@@ -38,7 +44,6 @@ def get_route(start, destination):
     if not start_location or not destination_location:
         return None
 
-    # OSRM routing API
     route_url = (
         "https://router.project-osrm.org/route/v1/driving/"
         f"{start_location['lon']},{start_location['lat']};"
@@ -68,6 +73,49 @@ def get_route(start, destination):
     }
 
 
+# -----------------------------
+# WEATHER DESCRIPTION
+# -----------------------------
+def weather_description(code):
+
+    weather_codes = {
+
+        0: "Clear Sky",
+
+        1: "Mainly Clear",
+        2: "Partly Cloudy",
+        3: "Overcast",
+
+        45: "Fog",
+        48: "Fog",
+
+        51: "Light Drizzle",
+        53: "Moderate Drizzle",
+        55: "Heavy Drizzle",
+
+        61: "Light Rain",
+        63: "Moderate Rain",
+        65: "Heavy Rain",
+
+        71: "Light Snow",
+        73: "Moderate Snow",
+        75: "Heavy Snow",
+
+        80: "Rain Showers",
+        81: "Moderate Rain Showers",
+        82: "Heavy Rain Showers",
+
+        95: "Thunderstorm",
+        96: "Thunderstorm with Hail",
+        99: "Heavy Thunderstorm"
+    }
+
+    return weather_codes.get(code, "Unknown Weather")
+
+
+# -----------------------------
+# GET REAL WEATHER
+# -----------------------------
 def get_weather(latitude, longitude):
 
     weather_url = "https://api.open-meteo.com/v1/forecast"
@@ -87,51 +135,83 @@ def get_weather(latitude, longitude):
     if not current:
         return None
 
+    code = current["weather_code"]
+
     return {
         "temperature": current["temperature_2m"],
         "wind_speed": current["wind_speed_10m"],
-        "weather_code": current["weather_code"]
+        "condition": weather_description(code),
+        "weather_code": code
     }
 
 
-def calculate_risk(weather):
+# -----------------------------
+# RISK CALCULATION
+# -----------------------------
+def calculate_risk(weather, distance):
 
-    if not weather:
-        return 50, "Moderate Risk"
+    score = 10
 
-    score = 20
+    if weather:
 
-    # High wind increases risk
-    if weather["wind_speed"] > 30:
-        score += 25
-    elif weather["wind_speed"] > 20:
-        score += 15
+        temperature = weather["temperature"]
+        wind = weather["wind_speed"]
+        code = weather["weather_code"]
 
-    # Weather code
-    code = weather["weather_code"]
+        # High wind
+        if wind >= 40:
+            score += 30
+        elif wind >= 25:
+            score += 20
+        elif wind >= 15:
+            score += 10
 
-    # Rain / storm / bad weather
-    if code >= 51:
-        score += 20
+        # Heavy rain
+        if code in [65, 82]:
+            score += 25
 
-    if code >= 80:
-        score += 20
+        # Normal rain
+        elif code in [61, 63, 80, 81]:
+            score += 15
 
-    if code >= 95:
-        score += 15
+        # Thunderstorm
+        elif code in [95, 96, 99]:
+            score += 35
+
+        # Fog
+        elif code in [45, 48]:
+            score += 20
+
+        # Extreme temperature
+        if temperature >= 40:
+            score += 15
+
+        elif temperature <= 5:
+            score += 10
+
+    # Long route
+    if distance > 300:
+        score += 10
+    elif distance > 150:
+        score += 5
 
     score = min(score, 100)
 
-    if score < 35:
+    if score < 30:
         level = "Low Risk"
-    elif score < 65:
+
+    elif score < 60:
         level = "Moderate Risk"
+
     else:
         level = "High Risk"
 
     return score, level
 
 
+# -----------------------------
+# HOME PAGE
+# -----------------------------
 @app.route("/", methods=["GET", "POST"])
 def home():
 
@@ -152,7 +232,10 @@ def home():
                 route["destination"]["lon"]
             )
 
-            risk_score, risk_level = calculate_risk(weather)
+            risk_score, risk_level = calculate_risk(
+                weather,
+                route["distance"]
+            )
 
             result = {
                 "start": route["start"]["name"],
@@ -165,6 +248,7 @@ def home():
             }
 
         else:
+
             error = "Location not found. Please enter a valid city name."
 
     return render_template(
@@ -174,5 +258,8 @@ def home():
     )
 
 
+# -----------------------------
+# START APPLICATION
+# -----------------------------
 if __name__ == "__main__":
     app.run()
