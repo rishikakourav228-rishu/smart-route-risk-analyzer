@@ -257,20 +257,21 @@ def home():
                 route["destination"]["lon"]
             )
 
-            risk_score, risk_level = calculate_risk(
-                weather,
-                route["distance"]
-            )
+           risk_score, risk_level, risk_reasons = calculate_risk(
+    weather,
+    route["distance"]
+)
 
-            result = {
-                "start": route["start"]["name"],
-                "destination": route["destination"]["name"],
-                "distance": route["distance"],
-                "time": route["time"],
-                "weather": weather,
-                "risk_score": risk_score,
-                "risk_level": risk_level
-            }
+result = {
+    "start": route["start"]["name"],
+    "destination": route["destination"]["name"],
+    "distance": route["distance"],
+    "time": route["time"],
+    "weather": weather,
+    "risk_score": risk_score,
+    "risk_level": risk_level,
+    "risk_reasons": risk_reasons
+}
 
         else:
 
