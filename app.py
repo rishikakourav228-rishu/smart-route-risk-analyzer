@@ -148,9 +148,13 @@ def get_weather(latitude, longitude):
 # -----------------------------
 # RISK CALCULATION
 # -----------------------------
+# -----------------------------
+# RISK CALCULATION
+# -----------------------------
 def calculate_risk(weather, distance):
 
     score = 10
+    reasons = []
 
     if weather:
 
@@ -158,42 +162,62 @@ def calculate_risk(weather, distance):
         wind = weather["wind_speed"]
         code = weather["weather_code"]
 
-        # High wind
-        if wind >= 40:
-            score += 30
-        elif wind >= 25:
-            score += 20
-        elif wind >= 15:
-            score += 10
-
-        # Heavy rain
-        if code in [65, 82]:
-            score += 25
-
-        # Normal rain
-        elif code in [61, 63, 80, 81]:
-            score += 15
-
-        # Thunderstorm
-        elif code in [95, 96, 99]:
-            score += 35
-
-        # Fog
-        elif code in [45, 48]:
-            score += 20
-
-        # Extreme temperature
+        # Temperature risk
         if temperature >= 40:
-            score += 15
+            score += 20
+            reasons.append("Very high temperature")
+        elif temperature >= 35:
+            score += 10
+            reasons.append("High temperature")
 
         elif temperature <= 5:
-            score += 10
+            score += 15
+            reasons.append("Very low temperature")
 
-    # Long route
-    if distance > 300:
-        score += 10
-    elif distance > 150:
+        # Wind risk
+        if wind >= 40:
+            score += 25
+            reasons.append("Very strong wind")
+        elif wind >= 25:
+            score += 15
+            reasons.append("Strong wind")
+        elif wind >= 15:
+            score += 5
+            reasons.append("Moderate wind")
+
+        # Weather condition risk
+        if code in [95, 96, 99]:
+            score += 35
+            reasons.append("Thunderstorm")
+
+        elif code in [65, 82]:
+            score += 25
+            reasons.append("Heavy rain")
+
+        elif code in [61, 63, 80, 81]:
+            score += 15
+            reasons.append("Rain")
+
+        elif code in [45, 48]:
+            score += 20
+            reasons.append("Fog")
+
+        elif code in [71, 73, 75]:
+            score += 20
+            reasons.append("Snow")
+
+    # Distance risk
+    if distance >= 500:
+        score += 20
+        reasons.append("Very long route")
+
+    elif distance >= 300:
+        score += 15
+        reasons.append("Long route")
+
+    elif distance >= 150:
         score += 5
+        reasons.append("Moderately long route")
 
     score = min(score, 100)
 
@@ -206,9 +230,10 @@ def calculate_risk(weather, distance):
     else:
         level = "High Risk"
 
-    return score, level
+    if not reasons:
+        reasons.append("No major risk indicator detected")
 
-
+    return score, level, reasons
 # -----------------------------
 # HOME PAGE
 # -----------------------------
